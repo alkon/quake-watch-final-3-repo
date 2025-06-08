@@ -31,7 +31,6 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GH_PAT }}
 
-      # --- START: Updated Docker Image Build and Publish Steps using actions/ ---
       - name: Build and Push Docker Image to GHCR
         uses: docker/build-push-action@v5 # Using the recommended action
         with:
@@ -43,17 +42,16 @@ jobs:
           # Optional: Add caching for faster builds
           # cache-from: type=gha
           # cache-to: type=gha,mode=max
-      # --- END: Updated Docker Image Build and Publish Steps using actions/ ---
 
       - name: Extract Chart Metadata
         id: chart # IMPORTANT: This ID is used to reference outputs like steps.chart.outputs.name
         run: |
-          # Find the *first* Chart.yaml in the ./helm/ directory structure.
-          # Assuming Helm chart is in a sub-directory under 'helm/' like 'helm/quake-watch-app-chart/Chart.yaml'
-          CHART_YAML_PATH=$(find ./helm -name Chart.yaml | head -n 1)
+          # Find the *first* Chart.yaml in the ./k8s/ directory structure.
+          # Assuming Helm chart is in a sub-directory under 'k8s/' like 'k8s/quake-watch-app-chart/Chart.yaml'
+          CHART_YAML_PATH=$(find ./k8s -name Chart.yaml | head -n 1) # CHANGED: from ./helm to ./k8s
           
           if [ -z "$CHART_YAML_PATH" ]; then
-            echo "Error: No Chart.yaml found in ./helm/ directory."
+            echo "Error: No Chart.yaml found in ./k8s/ directory." # CHANGED: from ./helm to ./k8s
             exit 1
           fi
           
@@ -68,7 +66,7 @@ jobs:
           echo "Chart name detected: $CHART_NAME"
           echo "name=$CHART_NAME" >> "$GITHUB_OUTPUT" # Output for current job steps
           
-          # Extract chart directory path (e.g., quake-watch-app-chart from helm/quake-watch-app-chart/Chart.yaml)
+          # Extract chart directory path (e.g., quake-watch-app-chart from k8s/quake-watch-app-chart/Chart.yaml)
           CHART_DIRECTORY=$(dirname "$CHART_YAML_PATH" | xargs basename)
           echo "Chart directory name: $CHART_DIRECTORY"
           echo "chart_directory=$CHART_DIRECTORY" >> "$GITHUB_OUTPUT" # Output for current job steps
@@ -86,7 +84,8 @@ jobs:
 
       - name: Package & Push Helm Chart to GHCR OCI
         run: |
-          CHART_DIR="./helm/${{ steps.chart.outputs.chart_directory }}" 
+          # The CHART_DIR path also needs to be updated to reflect the new base directory.
+          CHART_DIR="./k8s/${{ steps.chart.outputs.chart_directory }}" # CHANGED: from ./helm to ./k8s
           CHART_PACKAGE=$(helm package "$CHART_DIR" --destination . | awk '{print $NF}')
           echo "Packaged chart: $CHART_PACKAGE"
           GHCR_OCI_TARGET="oci://ghcr.io/${{ github.repository_owner }}/${{ steps.chart.outputs.name }}"
