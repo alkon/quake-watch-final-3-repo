@@ -1,0 +1,32 @@
+# k8s/quake-watch-app-chart/values.yaml
+
+replicaCount: 1
+
+image:
+  repository: quake-watch-app
+  pullPolicy: IfNotPresent
+  tag: "latest" # Make sure this matches your local image tag
+
+service:
+  type: ClusterIP
+  port: 5000
+  targetPort: 5000
+
+serviceAccount:
+  create: true # This must be set to true for the ServiceAccount to be created
+  name: ""     # Leave empty to use the default generated name
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
+
+autoscaling:
+  enabled: false
+
+nodeSelector: {}
+affinity: {}
+tolerations: {}
