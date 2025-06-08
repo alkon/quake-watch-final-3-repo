@@ -4,7 +4,7 @@ __pycache__/
 *$py.class
 
 # Environment-specific files
-.env
+app/.env
 .venv
 env/
 venv/

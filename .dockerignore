@@ -1,0 +1,9 @@
+.git
+.venv/
+__pycache__/
+*.pyc
+*.log
+.DS_Store
+venv/
+# If using PyCharm's specific files
+.idea/

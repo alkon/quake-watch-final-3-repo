@@ -5,6 +5,8 @@ ARG PYTHON_SUB_VER=2
 # Use the Python version argument to select the base image
 FROM python:${PYTHON_VER}.${PYTHON_SUB_VER}-alpine AS builder
 
+# Set the working directory inside the container
+# This means /app will be the root of your Python project within the container
 WORKDIR /app
 
 RUN apk update && \
@@ -14,6 +16,7 @@ RUN apk update && \
     # Remove cache to reduce size
     rm -rf /var/cache/apk/*
 
+# Copy only requirements.txt first for efficient caching
 COPY requirements.txt .
 
 # Install dependencies without caching
@@ -31,12 +34,17 @@ RUN apk update && \
 # Copy the installed Python packages from the builder stage
 COPY --from=builder /usr/local/lib/python${PYTHON_VER}/site-packages /usr/local/lib/python${PYTHON_VER}/site-packages
 
-# Copy application files
-COPY app.py .
-COPY dashboard.py .
-COPY utils.py .
-COPY templates/ templates/
+# Copy the entire 'app' directory from the host into the container's /app working directory
+# This single command now copies all your Python files, scripts, static, and templates.
+COPY app/ .
 
+# Ensure scripts within the 'scripts' directory are executable if needed
+# You might need to adjust this based on specific scripts or if they are called by Python
+# RUN chmod +x scripts/*.sh
+
+# Expose the port your application will run on
 EXPOSE 5000
 
+# Define the command to run your application
+# Assuming 'app.py' within the 'app' directory is the main entry point
 CMD ["python", "app.py"]
