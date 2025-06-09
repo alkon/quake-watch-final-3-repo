@@ -16,9 +16,9 @@ jobs:
 
     outputs:
       chart_name: ${{ steps.extract_metadata_action.outputs.name }} # Access output from the custom action
-      # Update image_tag to reflect the actual version pushed
-      image_tag: ${{ steps.extract_metadata_action.outputs.app_version }} # <--- UPDATED!
-      base_chart_version: ${{ steps.extract_metadata_action.outputs.base_version }} # Access output from the custom action
+      # This is now correctly reflecting the Docker image tag (which is appVersion)
+      image_tag: ${{ steps.extract_metadata_action.outputs.app_version }}
+      base_chart_version: ${{ steps.extract_metadata_action.outputs.base_version }} # This is the Helm chart's own version
       argocd_app_name: ${{ steps.extract_metadata_action.outputs.app_name }}
 
     steps:
@@ -44,7 +44,7 @@ jobs:
           context: .
           push: true
           # Use the dynamic app_version from Chart.yaml for the Docker image tag
-          tags: ghcr.io/${{ github.repository_owner }}/quake-watch-app:${{ steps.extract_metadata_action.outputs.app_version }} # <--- UPDATED!
+          tags: ghcr.io/${{ github.repository_owner }}/quake-watch-app:${{ steps.extract_metadata_action.outputs.app_version }}
           load: false
           no-cache: false
           pull: false
@@ -110,11 +110,11 @@ jobs:
         run: |
           APP_NAME="${{ needs.build-and-publish.outputs.argocd_app_name }}" 
 
-          # Use the correct image tag output for the ArgoCD app's targetRevision
-          CHART_VERSION_FOR_APP_TAG="${{ needs.build-and-publish.outputs.image_tag }}" # <--- UPDATED!
+          # CORRECTED: Use base_chart_version for ArgoCD's targetRevision for the OCI chart
+          CHART_VERSION_FOR_ARGOCD="${{ needs.build-and-publish.outputs.base_chart_version }}"
           
-          echo "Updating ArgoCD application '${APP_NAME}' targetRevision to application image tag: ${CHART_VERSION_FOR_APP_TAG}"
-          kubectl patch application "${APP_NAME}" -n argocd --type='json' -p='[{"op": "replace", "path": "/spec/source/targetRevision", "value":"'"$CHART_VERSION_FOR_APP_TAG"'"}]'
+          echo "Updating ArgoCD application '${APP_NAME}' targetRevision to Helm chart version: ${CHART_VERSION_FOR_ARGOCD}"
+          kubectl patch application "${APP_NAME}" -n argocd --type='json' -p='[{"op": "replace", "path": "/spec/source/targetRevision", "value":"'"$CHART_VERSION_FOR_ARGOCD"'"}]'
 
           echo "Triggering sync for ArgoCD application: ${APP_NAME}"
           argocd app sync "$APP_NAME" --prune 
