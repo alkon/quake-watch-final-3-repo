@@ -16,7 +16,7 @@ jobs:
 
     outputs:
       chart_name: ${{ steps.extract_metadata_action.outputs.name }} # Access output from the custom action
-      image_tag: "latest"
+      image_tag: "latest" # Assuming 'latest' tag is always pushed for the Docker image
       base_chart_version: ${{ steps.extract_metadata_action.outputs.base_version }} # Access output from the custom action
       argocd_app_name: ${{ steps.extract_metadata_action.outputs.app_name }}
 
@@ -35,10 +35,10 @@ jobs:
         id: extract_metadata_action # Assign an ID to the custom action step
         uses: ./.github/actions/extract-chart-metadata
         with:
-          chart-path: './k8s' # Pass the base path to the chart dir
+          chart-path: './k8s' # Pass the base path to your chart directory
 
       - name: Build and Push Docker Image to GHCR
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v5 # Using the recommended action
         with:
           context: .
           push: true
@@ -51,11 +51,12 @@ jobs:
 
       - name: Package & Push Helm Chart to GHCR OCI
         run: |
-          CHART_DIR="./k8s/${{ steps.extract_metadata_action.outputs.chart_directory }}" # Use output from custom action
-          echo "Running: helm package \"$CHART_DIR\" --destination ."
-          CHART_PACKAGE=$(helm package "$CHART_DIR" --destination . | awk '{print $NF}') 
+          CHART_DIR="./k8s/${{ steps.extract_metadata_action.outputs.chart_directory }}" 
+          # UPDATED: Explicitly use --version flag for helm package to ensure the correct version is used
+          echo "Running: helm package \"$CHART_DIR\" --destination . --version \"${{ steps.extract_metadata_action.outputs.base_version }}\""
+          CHART_PACKAGE=$(helm package "$CHART_DIR" --destination . --version "${{ steps.extract_metadata_action.outputs.base_version }}" | awk '{print $NF}') 
           echo "Packaged chart filename: $CHART_PACKAGE"
-          GHCR_OCI_TARGET="oci://ghcr.io/${{ github.repository_owner }}/${{ steps.extract_metadata_action.outputs.name }}" # Use output from custom action
+          GHCR_OCI_TARGET="oci://ghcr.io/${{ github.repository_owner }}/${{ steps.extract_metadata_action.outputs.name }}"
           echo "Pushing Helm chart to GHCR OCI Repository: $GHCR_OCI_TARGET"
           helm push "$CHART_PACKAGE" "$GHCR_OCI_TARGET" --debug
 
@@ -98,6 +99,7 @@ jobs:
           kubectl patch application "${APP_NAME}" -n argocd --type='json' -p='[{"op": "replace", "path": "/spec/source/targetRevision", "value":"'"$CHART_VERSION_FROM_YAML"'"}]'
 
           echo "Triggering sync for ArgoCD application: ${APP_NAME}"
+          # UPDATED: Removed --hard-refresh flag
           argocd app sync "$APP_NAME" --prune 
 
           argocd app wait "$APP_NAME" --health --sync --timeout 300
