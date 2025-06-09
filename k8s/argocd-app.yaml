@@ -8,7 +8,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: ghcr.io/alkon/quake-watch-app-chart  # Base OCI registry URL
+    repoURL: ghcr.io/alkon  # Base OCI registry URL
     targetRevision: 0.1.0        # Important! The placeholder for chart version only, not real version number
     chart: quake-watch-app-chart # The name of the chart within the OCI repository
     helm:
