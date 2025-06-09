@@ -52,7 +52,7 @@ jobs:
           push: true
 
           # Use the actual Docker image name 'quake-watch-app' & dynamic app_version from Chart.yaml
-          tags: ghcr.io/${{ github.repository_owner }}/quake-watch-app:${{ steps.extract_metadata_action.outputs.app_version }}
+          tags: ghcr.io/${{ github.repository_owner }}/quake-watch-app:${{ steps.extract_metadata_action.outputs.base_version }}
           load: false # Keep as false if you don't need to load into local docker daemon
           no-cache: false # Keep as false if you want to use build cache
           pull: false # Keep as false if you don't need to pull base image on every run
