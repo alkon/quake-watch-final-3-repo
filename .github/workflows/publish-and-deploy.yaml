@@ -37,12 +37,27 @@ jobs:
         with:
           chart-path: './k8s' # Pass the base path to your chart directory
 
+#      - name: Build and Push Docker Image to GHCR
+#        uses: docker/build-push-action@v5 # Using the recommended action
+#        with:
+#          context: .
+#          push: true
+#          tags: ghcr.io/${{ github.repository_owner }}/${{ steps.extract_metadata_action.outputs.name }}:latest
+
       - name: Build and Push Docker Image to GHCR
         uses: docker/build-push-action@v5 # Using the recommended action
         with:
           context: .
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/${{ steps.extract_metadata_action.outputs.name }}:latest
+          # CRITICAL FIX: Ensure the tags are correctly defined here.
+          # Use the actual Docker image name 'quake-watch-app'
+          # and the dynamic app_version from Chart.yaml.
+          tags: ghcr.io/${{ github.repository_owner }}/quake-watch-app:${{ steps.extract_metadata_action.outputs.app_version }}
+          # Explicitly set the 'load' and 'no-cache' options if you want them.
+          # Removing them might sometimes help if they are interfering with tagging.
+          load: false # Keep as false if you don't need to load into local docker daemon
+          no-cache: false # Keep as false if you want to use build cache
+          pull: false # Keep as false if you don't need to pull base image on every run
 
       - name: Set up Helm
         uses: azure/setup-helm@v4
