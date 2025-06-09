@@ -7,7 +7,7 @@ spec:
   project: default
   source:
     repoURL: ghcr.io/alkon # Base OCI registry URL
-    targetRevision: 0.3.0
+    targetRevision: v0.3.0
     chart: quake-watch-app-chart
     helm:
       values: |
