@@ -15,10 +15,10 @@ jobs:
       packages: write # Crucial for pushing Docker images and Helm charts to GHCR
 
     outputs:
-      chart_name: ${{ steps.chart.outputs.name }}
-      # Now outputting the full dynamically generated chart version
-      full_chart_version: ${{ steps.chart_version_output.outputs.full_version }} # ADDED: Output for the dynamically generated chart version
+      chart_name: ${{ steps.chart_metadata.outputs.name }} # UPDATED: Use new step ID
+      # Removed: full_chart_version output, as we're no longer generating a dynamic build version for Helm chart
       image_tag: "latest" # Assuming 'latest' tag is always pushed
+      base_chart_version: ${{ steps.chart_metadata.outputs.base_version }} # ADDED: Output the base chart version
 
     steps:
       - name: Checkout Code
@@ -43,8 +43,8 @@ jobs:
           # cache-from: type=gha
           # cache-to: type=gha,mode=max
 
-      - name: Extract Chart Metadata and Generate Version
-        id: chart_version_output # CHANGED: ID to more accurately reflect output
+      - name: Extract Chart Metadata # UPDATED: Renamed for clarity, no longer generates build version for Helm
+        id: chart_metadata # UPDATED: ID
         run: |
           # Find the *first* Chart.yaml in the ./k8s/ directory structure.
           CHART_YAML_PATH=$(find ./k8s -name Chart.yaml | head -n 1) 
@@ -54,27 +54,22 @@ jobs:
             exit 1
           fi
           
-          # Extract base version from Chart.yaml
+          # Extract base version from Chart.yaml. This will be the Helm chart's version in GHCR.
           BASE_CHART_VERSION=$(grep '^version:' "$CHART_YAML_PATH" | cut -d ':' -f2 | xargs)
-          echo "Base chart version detected: $BASE_CHART_VERSION"
+          echo "Base chart version detected from Chart.yaml: $BASE_CHART_VERSION"
+          echo "base_version=$BASE_CHART_VERSION" >> "$GITHUB_OUTPUT" # ADDED: Output the base version
 
-          # GENERATED: A dynamic version tag for the Helm chart based on the workflow run number.
-          # This ensures a unique OCI chart version for each successful build.
-          FULL_CHART_VERSION="${BASE_CHART_VERSION}-build-${{ github.run_number }}"
-          echo "Generated full chart version for OCI: $FULL_CHART_VERSION"
-          echo "full_version=$FULL_CHART_VERSION" >> "$GITHUB_OUTPUT" # Output for current job steps and for job output
-          
-          # Extract name from Chart.yaml (still needed for package/push)
+          # Extract name from Chart.yaml
           CHART_NAME=$(grep '^name:' "$CHART_YAML_PATH" | cut -d ':' -f2 | xargs)
           echo "Chart name detected: $CHART_NAME"
-          echo "name=$CHART_NAME" >> "$GITHUB_OUTPUT" # Output for current job steps
+          echo "name=$CHART_NAME" >> "$GITHUB_OUTPUT" # Output for current job steps and for job output
 
           # Extract chart directory path (e.g., quake-watch-app-chart from k8s/quake-watch-app-chart/Chart.yaml)
           CHART_DIRECTORY=$(dirname "$CHART_YAML_PATH" | xargs basename)
           echo "Chart directory name: $CHART_DIRECTORY"
           echo "chart_directory=$CHART_DIRECTORY" >> "$GITHUB_OUTPUT" # Output for current job steps
 
-      # Removed: Upload Chart Version Artifact step (no longer needed with job output)
+      # Removed: Upload Chart Version Artifact step
 
       - name: Set up Helm
         uses: azure/setup-helm@v4
@@ -83,11 +78,14 @@ jobs:
 
       - name: Package & Push Helm Chart to GHCR OCI
         run: |
-          # Use the dynamically generated full chart version for packaging
-          CHART_DIR="./k8s/${{ steps.chart_version_output.outputs.chart_directory }}" 
-          CHART_PACKAGE=$(helm package "$CHART_DIR" --destination . --version "${{ steps.chart_version_output.outputs.full_version }}" | awk '{print $NF}') # ADDED --version flag
-          echo "Packaged chart: $CHART_PACKAGE"
-          GHCR_OCI_TARGET="oci://ghcr.io/${{ github.repository_owner }}/${{ steps.chart_version_output.outputs.name }}"
+          # Use the chart directory from the previous step.
+          # NOT adding --version flag to `helm package` so it uses the version from Chart.yaml directly.
+          CHART_DIR="./k8s/${{ steps.chart_metadata.outputs.chart_directory }}" 
+          echo "Running: helm package \"$CHART_DIR\" --destination ."
+          CHART_PACKAGE=$(helm package "$CHART_DIR" --destination . | awk '{print $NF}') # CHANGED: Removed --version flag
+          echo "Packaged chart filename: $CHART_PACKAGE"
+          # GHCR OCI target will still include the chart name, Helm automatically picks version from package
+          GHCR_OCI_TARGET="oci://ghcr.io/${{ github.repository_owner }}/${{ steps.chart_metadata.outputs.name }}"
           echo "Pushing Helm chart to GHCR OCI Repository: $GHCR_OCI_TARGET"
           helm push "$CHART_PACKAGE" "$GHCR_OCI_TARGET" --debug
 
@@ -125,24 +123,21 @@ jobs:
             --password ${{ steps.get_argocd_password.outputs.argocd_password }} \
             --insecure
 
-      # --- START: Changes to reliably sync ArgoCD with OCI chart version ---
-      - name: Update ArgoCD Application with New Chart Version and Sync
+      - name: Update ArgoCD Application with Chart.yaml Version and Sync # UPDATED: Step name
         run: |
           APP_NAME="quake-watch-app-gitops" # Directly use the application name
 
-          # Get the full chart version from the build-and-publish job outputs
-          NEW_CHART_VERSION="${{ needs.build-and-publish.outputs.full_chart_version }}"
-          CHART_NAME="${{ needs.build-and-publish.outputs.chart_name }}" # Get chart name from build job
+          # Get the base chart version from the build-and-publish job outputs
+          # This version comes directly from Chart.yaml
+          CHART_VERSION_FROM_YAML="${{ needs.build-and-publish.outputs.base_chart_version }}" # UPDATED: Use new output name
+          CHART_NAME="${{ needs.build-and-publish.outputs.chart_name }}" 
 
-          echo "Updating ArgoCD application '${APP_NAME}' targetRevision to OCI chart version: ${NEW_CHART_VERSION}"
-          # Patch the application to explicitly point to the new OCI chart version
-          # This resolves the "Cannot sync to HEAD: auto-sync currently set to 0.1.0" error for OCI charts.
-          kubectl patch application "${APP_NAME}" -n argocd --type='json' -p='[{"op": "replace", "path": "/spec/source/targetRevision", "value":"'"$NEW_CHART_VERSION"'"}]'
+          echo "Updating ArgoCD application '${APP_NAME}' targetRevision to Chart.yaml version: ${CHART_VERSION_FROM_YAML}"
+          # Patch the application to explicitly point to the version from Chart.yaml
+          kubectl patch application "${APP_NAME}" -n argocd --type='json' -p='[{"op": "replace", "path": "/spec/source/targetRevision", "value":"'"$CHART_VERSION_FROM_YAML"'"}]'
 
           echo "Triggering sync for ArgoCD application: ${APP_NAME}"
-          # Now trigger a sync. It will use the targetRevision set in the previous step.
-          argocd app sync "$APP_NAME" --prune  
+          argocd app sync "$APP_NAME" --prune --hard-refresh 
 
           # Optional: Wait for the application to be healthy
           argocd app wait "$APP_NAME" --health --sync --timeout 300
-      # --- END: Changes to reliably sync ArgoCD with OCI chart version ---
