@@ -1,11 +1,9 @@
-# k8s/quake-watch-app-chart/values.yaml
-
 replicaCount: 2
 
 image:
-  repository: quake-watch-app
+  repository: ghcr.io/alkon/quake-watch-app # Updated to your full GHCR image path
   pullPolicy: IfNotPresent
-  tag: "latest" # Make sure this matches your local image tag
+  # REMOVED: 'tag: "latest"'. The deployment template will now default to Chart.AppVersion (1.0.0).
 
 service:
   type: ClusterIP

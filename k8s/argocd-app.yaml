@@ -1,24 +1,20 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  # Important! Use this convention for app name: <chart-name>-gitops
-  # It enables dynamic APP_NAME generation in publish workflow
   name: quake-watch-app-chart-gitops
   namespace: argocd
 spec:
   project: default
   source:
-    repoURL: ghcr.io/alkon  # Base OCI registry URL
-    targetRevision: 0.1.0        # Important! The placeholder for chart version only, not real version number
-    chart: quake-watch-app-chart # The name of the chart within the OCI repository
+    repoURL: ghcr.io/alkon # Base OCI registry URL
+    targetRevision: 0.3.0
+    chart: quake-watch-app-chart
     helm:
       values: |
-        image:
-          tag: latest            # Matches the Docker image tag
-        replicaCount: 1
+        replicaCount: 2
   destination:
     server: https://kubernetes.default.svc
-    namespace: default  # Target namespace for application resources
+    namespace: default
   syncPolicy:
     automated:
       prune: true
