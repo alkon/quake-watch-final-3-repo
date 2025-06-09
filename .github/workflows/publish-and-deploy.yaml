@@ -16,7 +16,8 @@ jobs:
 
     outputs:
       chart_name: ${{ steps.extract_metadata_action.outputs.name }} # Access output from the custom action
-      image_tag: "latest" # Assuming 'latest' tag is always pushed for the Docker image
+      # Update image_tag to reflect the actual version pushed
+      image_tag: ${{ steps.extract_metadata_action.outputs.app_version }} # <--- UPDATED!
       base_chart_version: ${{ steps.extract_metadata_action.outputs.base_version }} # Access output from the custom action
       argocd_app_name: ${{ steps.extract_metadata_action.outputs.app_name }}
 
@@ -37,25 +38,16 @@ jobs:
         with:
           chart-path: './k8s' # Pass the base path to your chart directory
 
-#      - name: Build and Push Docker Image to GHCR
-#        uses: docker/build-push-action@v5 # Using the recommended action
-#        with:
-#          context: .
-#          push: true
-#          tags: ghcr.io/${{ github.repository_owner }}/${{ steps.extract_metadata_action.outputs.name }}:latest
-
-
       - name: Build and Push Docker Image to GHCR
         uses: docker/build-push-action@v5 # Using the recommended action
         with:
           context: .
           push: true
-
-          # Use the actual Docker image name 'quake-watch-app' & dynamic app_version from Chart.yaml
-          tags: ghcr.io/${{ github.repository_owner }}/quake-watch-app:${{ steps.extract_metadata_action.outputs.base_version }}
-          load: false # Keep as false if you don't need to load into local docker daemon
-          no-cache: false # Keep as false if you want to use build cache
-          pull: false # Keep as false if you don't need to pull base image on every run
+          # Use the dynamic app_version from Chart.yaml for the Docker image tag
+          tags: ghcr.io/${{ github.repository_owner }}/quake-watch-app:${{ steps.extract_metadata_action.outputs.app_version }} # <--- UPDATED!
+          load: false
+          no-cache: false
+          pull: false
 
       - name: Set up Helm
         uses: azure/setup-helm@v4
@@ -64,33 +56,26 @@ jobs:
 
       - name: Package & Push Helm Chart to GHCR OCI
         run: |
-          # The chart directory name is already extracted as chart_directory
           CHART_DIR="./k8s/${{ steps.extract_metadata_action.outputs.chart_directory }}" 
-          CHART_NAME="${{ steps.extract_metadata_action.outputs.name }}" # Get chart name from action output
-          CHART_VERSION="${{ steps.extract_metadata_action.outputs.base_version }}" # Get chart version from action output
+          CHART_NAME="${{ steps.extract_metadata_action.outputs.name }}" 
+          CHART_VERSION="${{ steps.extract_metadata_action.outputs.base_version }}" 
           
-          # Construct the expected package filename based on Helm's convention
           EXPECTED_CHART_PACKAGE_FILENAME="${CHART_NAME}-${CHART_VERSION}.tgz"
-          
+
           echo "Packaging Helm chart from: $CHART_DIR"
           echo "Expected packaged filename: $EXPECTED_CHART_PACKAGE_FILENAME"
           
-          # Helm package command will create the .tgz in the current directory ('.')
-          # We don't need to capture its output here, as we know the filename.
           helm package "$CHART_DIR" --destination . 
           
-          # Ensure the package file exists before attempting to push
           if [ ! -f "$EXPECTED_CHART_PACKAGE_FILENAME" ]; then
             echo "Error: Helm package '$EXPECTED_CHART_PACKAGE_FILENAME' not found after packaging."
             exit 1
           fi
-          
-          # CRITICAL FIX: The GHCR OCI target should ONLY be the base registry URL.
-          # Helm push will infer the chart name and version from the filename.
+
           GHCR_OCI_TARGET="oci://ghcr.io/${{ github.repository_owner }}" 
           echo "Pushing Helm chart '$EXPECTED_CHART_PACKAGE_FILENAME' to GHCR OCI Repository: $GHCR_OCI_TARGET"
           helm push "$EXPECTED_CHART_PACKAGE_FILENAME" "$GHCR_OCI_TARGET" --debug
-        shell: bash # Explicitly set shell for consistency and bash features
+        shell: bash
 
   deploy:
     runs-on: self-hosted
@@ -125,10 +110,11 @@ jobs:
         run: |
           APP_NAME="${{ needs.build-and-publish.outputs.argocd_app_name }}" 
 
-          CHART_VERSION_FROM_YAML="${{ needs.build-and-publish.outputs.base_chart_version }}" 
+          # Use the correct image tag output for the ArgoCD app's targetRevision
+          CHART_VERSION_FOR_APP_TAG="${{ needs.build-and-publish.outputs.image_tag }}" # <--- UPDATED!
           
-          echo "Updating ArgoCD application '${APP_NAME}' targetRevision to Chart.yaml version: ${CHART_VERSION_FROM_YAML}"
-          kubectl patch application "${APP_NAME}" -n argocd --type='json' -p='[{"op": "replace", "path": "/spec/source/targetRevision", "value":"'"$CHART_VERSION_FROM_YAML"'"}]'
+          echo "Updating ArgoCD application '${APP_NAME}' targetRevision to application image tag: ${CHART_VERSION_FOR_APP_TAG}"
+          kubectl patch application "${APP_NAME}" -n argocd --type='json' -p='[{"op": "replace", "path": "/spec/source/targetRevision", "value":"'"$CHART_VERSION_FOR_APP_TAG"'"}]'
 
           echo "Triggering sync for ArgoCD application: ${APP_NAME}"
           argocd app sync "$APP_NAME" --prune 

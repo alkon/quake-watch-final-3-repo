@@ -17,6 +17,9 @@ outputs:
   app_name: # NEW OUTPUT
     description: 'The derived ArgoCD application name (e.g., <chart-name>-gitops)'
     value: ${{ steps.extract.outputs.argocd_app_name }}
+  app_version: # <--- NEW OUTPUT FOR APP VERSION
+    description: 'The appVersion of the Helm chart from Chart.yaml'
+    value: ${{ steps.extract.outputs.app_version }} # Referencing the output from the run step
 runs:
   using: "composite"
   steps:
@@ -45,4 +48,16 @@ runs:
         ARGOCD_APP_NAME="${CHART_NAME}-gitops"
         echo "Derived ArgoCD Application Name: $ARGOCD_APP_NAME"
         echo "argocd_app_name=$ARGOCD_APP_NAME" >> "$GITHUB_OUTPUT"
+
+        # --- ADD THIS BLOCK FOR APP VERSION ---
+        APP_VERSION=$(grep '^appVersion:' "$CHART_YAML_PATH" | cut -d ':' -f2 | xargs)
+        if [ -z "$APP_VERSION" ]; then
+            # Fallback if appVersion is not explicitly set, perhaps use chart version or a default
+            echo "Warning: appVersion not found in Chart.yaml. Using base_chart_version as fallback."
+            APP_VERSION="$BASE_CHART_VERSION"
+        fi
+        echo "App version detected from Chart.yaml: $APP_VERSION"
+        echo "app_version=$APP_VERSION" >> "$GITHUB_OUTPUT"
+        # -------------------------------------
+
       shell: bash
