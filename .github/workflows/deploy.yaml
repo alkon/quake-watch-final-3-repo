@@ -24,7 +24,7 @@ jobs:
           echo "KUBECONFIG=$HOME/.kube/config" >> $GITHUB_ENV
 
       - name: Set up ArgoCD CLI
-        uses: argoproj/argocd-action@v3 # Updated to v3
+        uses: argoproj/argocd-action@v2 # Updated to v3
         with:
           version: latest
 
