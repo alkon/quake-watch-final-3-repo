@@ -1,0 +1,54 @@
+name: Deploy the Python App & Helm Chart
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # Allows manual trigger
+
+jobs:
+  deploy: # Corrected job definition starts here
+    runs-on: self-hosted
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Removed: Download Chart Version Artifact step
+
+      - name: Set up Kubeconfig for K3D Cluster
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" > ~/.kube/config
+          chmod 600 ~/.kube/config
+          echo "KUBECONFIG=$HOME/.kube/config" >> $GITHUB_ENV
+
+      - name: Set up ArgoCD CLI
+        uses: argoproj/argocd-action@v3 # Updated to v3
+        with:
+          version: latest
+
+      - name: Get ArgoCD Admin Password
+        id: get_argocd_password
+        run: |
+          ARGO_CD_INITIAL_PASSWORD=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)
+          echo "Retrieved ArgoCD Admin Password."
+          echo "argocd_password=$ARGO_CD_INITIAL_PASSWORD" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to ArgoCD
+        run: |
+          argocd login ${{ secrets.ARGO_CD_SERVER }} \
+            --username admin \
+            --password ${{ steps.get_argocd_password.outputs.argocd_password }} \
+            --insecure
+
+      - name: Trigger ArgoCD Application Sync
+        run: |
+          CHART_NAME="${{ needs.build-and-publish.outputs.chart_name }}"
+          
+          echo "Triggering sync for ArgoCD application: ${CHART_NAME}-gitops"
+          argocd app sync quake-watch-app-gitops --revision HEAD --hard-refresh --prune
+          
+          # Optional: Wait for the application to be healthy
+          # argocd app wait quake-watch-app-gitops --health --sync --timeout 300
+
