@@ -42,7 +42,7 @@ jobs:
           CHART_NAME="${{ needs.build-and-publish.outputs.chart_name }}"
           
           echo "Triggering sync for ArgoCD application: ${CHART_NAME}-gitops"
-          argocd app sync quake-watch-app-gitops --revision HEAD --hard-refresh --prune
+          argocd app sync quake-watch-app-gitops --revision HEAD --prune
           
           # Optional: Wait for the application to be healthy
           # argocd app wait quake-watch-app-gitops --health --sync --timeout 300
