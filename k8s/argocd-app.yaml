@@ -6,7 +6,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: ghcr.io/alkon/quake-watch-app-chart # There is the bug that helm pushes chart in double-nested dir
+    repoURL: ghcr.io/alkon # There is the bug that helm pushes chart in double-nested dir
     targetRevision: v0.4.0
     chart: quake-watch-app-chart
     helm:
