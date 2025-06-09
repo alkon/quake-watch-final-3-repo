@@ -64,21 +64,33 @@ jobs:
 
       - name: Package & Push Helm Chart to GHCR OCI
         run: |
+          # The chart directory name is already extracted as chart_directory
           CHART_DIR="./k8s/${{ steps.extract_metadata_action.outputs.chart_directory }}" 
+          CHART_NAME="${{ steps.extract_metadata_action.outputs.name }}" # Get chart name from action output
+          CHART_VERSION="${{ steps.extract_metadata_action.outputs.base_version }}" # Get chart version from action output
           
-          # CORRECTED: Explicitly use --version flag for helm package.
-          # This ensures the packaged .tgz file (e.g., quake-watch-app-chart-0.3.0.tgz)
-          # correctly reflects the chart's version from Chart.yaml.
-          echo "Running: helm package \"$CHART_DIR\" --destination . --version \"${{ steps.extract_metadata_action.outputs.base_version }}\""
-          CHART_PACKAGE=$(helm package "$CHART_DIR" --destination . --version "${{ steps.extract_metadata_action.outputs.base_version }}" | awk '{print $NF}') 
-          echo "Packaged chart filename: $CHART_PACKAGE"
+          # Construct the expected package filename based on Helm's convention
+          EXPECTED_CHART_PACKAGE_FILENAME="${CHART_NAME}-${CHART_VERSION}.tgz"
+          
+          echo "Packaging Helm chart from: $CHART_DIR"
+          echo "Expected packaged filename: $EXPECTED_CHART_PACKAGE_FILENAME"
+          
+          # Helm package command will create the .tgz in the current directory ('.')
+          # We don't need to capture its output here, as we know the filename.
+          helm package "$CHART_DIR" --destination . 
+          
+          # Ensure the package file exists before attempting to push
+          if [ ! -f "$EXPECTED_CHART_PACKAGE_FILENAME" ]; then
+            echo "Error: Helm package '$EXPECTED_CHART_PACKAGE_FILENAME' not found after packaging."
+            exit 1
+          fi
           
           # CRITICAL FIX: The GHCR OCI target should ONLY be the base registry URL.
-          # Helm push will infer the chart name (quake-watch-app-chart) and version (0.3.0)
-          # from the filename of the packaged chart (CHART_PACKAGE).
-          GHCR_OCI_TARGET="oci://ghcr.io/${{ github.repository_owner }}" # Corrected: Removed /quake-watch-app-chart
-          echo "Pushing Helm chart to GHCR OCI Repository: $GHCR_OCI_TARGET"
-          helm push "$CHART_PACKAGE" "$GHCR_OCI_TARGET" --debug
+          # Helm push will infer the chart name and version from the filename.
+          GHCR_OCI_TARGET="oci://ghcr.io/${{ github.repository_owner }}" 
+          echo "Pushing Helm chart '$EXPECTED_CHART_PACKAGE_FILENAME' to GHCR OCI Repository: $GHCR_OCI_TARGET"
+          helm push "$EXPECTED_CHART_PACKAGE_FILENAME" "$GHCR_OCI_TARGET" --debug
+        shell: bash # Explicitly set shell for consistency and bash features
 
   deploy:
     runs-on: self-hosted
