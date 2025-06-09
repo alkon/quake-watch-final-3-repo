@@ -6,8 +6,8 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: ghcr.io/alkon # Base OCI registry URL
-    targetRevision: v0.3.0
+    repoURL: ghcr.io/alkon/quake-watch-app-chart # There is the bug that helm pushes chart in double-nested dir
+    targetRevision: v0.4.0
     chart: quake-watch-app-chart
     helm:
       values: |
