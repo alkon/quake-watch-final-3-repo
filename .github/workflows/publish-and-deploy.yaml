@@ -15,11 +15,10 @@ jobs:
       packages: write # Crucial for pushing Docker images and Helm charts to GHCR
 
     outputs:
-      chart_name: ${{ steps.extract_metadata_action.outputs.name }} # Access output from the custom action
-      # Removed: image_tag: "latest" as it's now dynamic
-      base_chart_version: ${{ steps.extract_metadata_action.outputs.base_version }} # Access output from the custom action
-      argocd_app_name: ${{ steps.extract_metadata_action.outputs.app_name }}
-      app_version: ${{ steps.extract_metadata_action.outputs.app_version }} # NEW: Output the application version
+      chart_name: ${{ steps.chart_metadata.outputs.name }} # UPDATED: Use new step ID
+      # Removed: full_chart_version output, as we're no longer generating a dynamic build version for Helm chart
+      image_tag: "latest" # Assuming 'latest' tag is always pushed
+      base_chart_version: ${{ steps.chart_metadata.outputs.base_version }} # ADDED: Output the base chart version
 
     steps:
       - name: Checkout Code
@@ -32,19 +31,45 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GH_PAT }}
 
-      - name: Extract Chart Metadata
-        id: extract_metadata_action # Assign an ID to the custom action step
-        uses: ./.github/actions/extract-chart-metadata
-        with:
-          chart-path: './k8s' # Pass the base path to your chart directory
-
       - name: Build and Push Docker Image to GHCR
         uses: docker/build-push-action@v5 # Using the recommended action
         with:
-          context: .
+          context: . # Path to the build context, usually where your Dockerfile is.
+                     # Assumes your Dockerfile is in the root of the repository.
+                     # If it's in a subfolder (e.g., ./app), change to './app'
           push: true
-          # UPDATED: Use the dynamically extracted app_version for the Docker image tag
-          tags: ghcr.io/${{ github.repository_owner }}/${{ steps.extract_metadata_action.outputs.name }}:${{ steps.extract_metadata_action.outputs.app_version }}
+          tags: ghcr.io/${{ github.repository_owner }}/quake-watch-app:latest
+          # Optional: Add caching for faster builds
+          # cache-from: type=gha
+          # cache-to: type=gha,mode=max
+
+      - name: Extract Chart Metadata # UPDATED: Renamed for clarity, no longer generates build version for Helm
+        id: chart_metadata # UPDATED: ID
+        run: |
+          # Find the *first* Chart.yaml in the ./k8s/ directory structure.
+          CHART_YAML_PATH=$(find ./k8s -name Chart.yaml | head -n 1) 
+          
+          if [ -z "$CHART_YAML_PATH" ]; then
+            echo "Error: No Chart.yaml found in ./k8s/ directory."
+            exit 1
+          fi
+          
+          # Extract base version from Chart.yaml. This will be the Helm chart's version in GHCR.
+          BASE_CHART_VERSION=$(grep '^version:' "$CHART_YAML_PATH" | cut -d ':' -f2 | xargs)
+          echo "Base chart version detected from Chart.yaml: $BASE_CHART_VERSION"
+          echo "base_version=$BASE_CHART_VERSION" >> "$GITHUB_OUTPUT" # ADDED: Output the base version
+
+          # Extract name from Chart.yaml
+          CHART_NAME=$(grep '^name:' "$CHART_YAML_PATH" | cut -d ':' -f2 | xargs)
+          echo "Chart name detected: $CHART_NAME"
+          echo "name=$CHART_NAME" >> "$GITHUB_OUTPUT" # Output for current job steps and for job output
+
+          # Extract chart directory path (e.g., quake-watch-app-chart from k8s/quake-watch-app-chart/Chart.yaml)
+          CHART_DIRECTORY=$(dirname "$CHART_YAML_PATH" | xargs basename)
+          echo "Chart directory name: $CHART_DIRECTORY"
+          echo "chart_directory=$CHART_DIRECTORY" >> "$GITHUB_OUTPUT" # Output for current job steps
+
+      # Removed: Upload Chart Version Artifact step
 
       - name: Set up Helm
         uses: azure/setup-helm@v4
@@ -53,28 +78,36 @@ jobs:
 
       - name: Package & Push Helm Chart to GHCR OCI
         run: |
-          CHART_DIR="./k8s/${{ steps.extract_metadata_action.outputs.chart_directory }}" 
-          echo "Running: helm package \"$CHART_DIR\" --destination . --version \"${{ steps.extract_metadata_action.outputs.base_version }}\""
-          CHART_PACKAGE=$(helm package "$CHART_DIR" --destination . --version "${{ steps.extract_metadata_action.outputs.base_version }}" | awk '{print $NF}') 
+          # Use the chart directory from the previous step.
+          # NOT adding --version flag to `helm package` so it uses the version from Chart.yaml directly.
+          CHART_DIR="./k8s/${{ steps.chart_metadata.outputs.chart_directory }}" 
+          echo "Running: helm package \"$CHART_DIR\" --destination ."
+          CHART_PACKAGE=$(helm package "$CHART_DIR" --destination . | awk '{print $NF}') # CHANGED: Removed --version flag
           echo "Packaged chart filename: $CHART_PACKAGE"
-          GHCR_OCI_TARGET="oci://ghcr.io/${{ github.repository_owner }}" 
+          # GHCR OCI target will still include the chart name, Helm automatically picks version from package
+          GHCR_OCI_TARGET="oci://ghcr.io/${{ github.repository_owner }}/${{ steps.chart_metadata.outputs.name }}"
           echo "Pushing Helm chart to GHCR OCI Repository: $GHCR_OCI_TARGET"
           helm push "$CHART_PACKAGE" "$GHCR_OCI_TARGET" --debug
 
   deploy:
     runs-on: self-hosted
-    needs: build-and-publish
+    needs: build-and-publish # Crucial to get outputs from the 'build-and-publish' job
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Removed: Download Chart Version Artifact step
+
       - name: Set up Kubeconfig for K3D Cluster
         run: |
           mkdir -p ~/.kube
-          echo "${{ secrets.KUBECONFIG }}" > ~/.kube/config 
+          echo "${{ secrets.KUBECONFIG }}" > ~/.kube/config
           chmod 600 ~/.kube/config
           echo "KUBECONFIG=$HOME/.kube/config" >> $GITHUB_ENV
+
+      # The 'Install ArgoCD CLI' step has been removed based on your request.
+      # The workflow will now rely on ArgoCD CLI being pre-installed on the self-hosted runner.
 
       - name: Get ArgoCD Admin Password
         id: get_argocd_password
@@ -90,16 +123,21 @@ jobs:
             --password ${{ steps.get_argocd_password.outputs.argocd_password }} \
             --insecure
 
-      - name: Update ArgoCD Application with Chart.yaml Version and Sync
+      - name: Update ArgoCD Application with Chart.yaml Version and Sync # UPDATED: Step name
         run: |
-          APP_NAME="${{ needs.build-and-publish.outputs.argocd_app_name }}" 
+          APP_NAME="quake-watch-app-gitops" # Directly use the application name
 
-          CHART_VERSION_FROM_YAML="${{ needs.build-and-publish.outputs.base_chart_version }}" 
-          
+          # Get the base chart version from the build-and-publish job outputs
+          # This version comes directly from Chart.yaml
+          CHART_VERSION_FROM_YAML="${{ needs.build-and-publish.outputs.base_chart_version }}" # UPDATED: Use new output name
+          CHART_NAME="${{ needs.build-and-publish.outputs.chart_name }}" 
+
           echo "Updating ArgoCD application '${APP_NAME}' targetRevision to Chart.yaml version: ${CHART_VERSION_FROM_YAML}"
+          # Patch the application to explicitly point to the version from Chart.yaml
           kubectl patch application "${APP_NAME}" -n argocd --type='json' -p='[{"op": "replace", "path": "/spec/source/targetRevision", "value":"'"$CHART_VERSION_FROM_YAML"'"}]'
 
           echo "Triggering sync for ArgoCD application: ${APP_NAME}"
-          argocd app sync "$APP_NAME" --prune 
+          argocd app sync "$APP_NAME" --prune
 
+          # Optional: Wait for the application to be healthy
           argocd app wait "$APP_NAME" --health --sync --timeout 300
