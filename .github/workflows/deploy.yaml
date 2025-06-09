@@ -39,11 +39,13 @@ jobs:
 
       - name: Trigger ArgoCD Application Sync
         run: |
-          CHART_NAME="${{ needs.build-and-publish.outputs.chart_name }}"
-          
-          echo "Triggering sync for ArgoCD application: ${CHART_NAME}-gitops"
-          argocd app sync quake-watch-app-gitops --revision HEAD --prune
-          
-          # Optional: Wait for the application to be healthy
-          # argocd app wait quake-watch-app-gitops --health --sync --timeout 300
+          APP_NAME="quake-watch-app-gitops" # Directly use the application name
+
+          echo "Setting ArgoCD application target revision to main: ${APP_NAME}"
+          # Temporarily set the targetRevision of the ArgoCD application to 'main'
+          # This is the workaround to allow syncing to HEAD when the app is configured to a specific version.
+          argocd app set "$APP_NAME" --revision main
+
+          echo "Triggering sync for ArgoCD application: ${APP_NAME}"
+          argocd app sync "$APP_NAME" --revision HEAD --prune 
 
