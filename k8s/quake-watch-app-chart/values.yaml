@@ -1,6 +1,6 @@
 # k8s/quake-watch-app-chart/values.yaml
 
-replicaCount: 1
+replicaCount: 2
 
 image:
   repository: quake-watch-app
