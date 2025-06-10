@@ -9,7 +9,7 @@ on:
 jobs:
 
   lint:
-    uses: ./.github/workflows/reusable-python-job.yaml
+    uses: ./.github/workflows/reusable-python-task.yaml
     with:
       job-name: Lint
       python-version: ${{ matrix.python-version }}
