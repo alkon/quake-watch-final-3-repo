@@ -14,27 +14,37 @@ jobs:
       python-version: ${{ matrix.python-version }}
       requirements-path: ./requirements.txt
       task-script: |
+        # CRITICAL: Re-evaluate pyenv init for this specific step's shell context
+        # This ensures the correct pyenv-managed Python and its packages (like pylint/pytest)
+        # are in the PATH for the script that follows.
+        eval "$(pyenv init --path)"
+        # eval "$(pyenv virtualenv-init -)" # Include if you are using pyenv virtualenvs
+
+        echo "Running Lint with Python 3.13..."
         echo "--- Debugging Paths ---"
         echo "Current working directory: $(pwd)"
-        echo "GITHUB_WORKSPACE: ${{ github.workspace }}"
+        echo "GITHUB_WORKSPACE: ${{ github.workspace }}" # Make sure this outputs something
         echo "Listing contents of current directory:"
-        ls -RF # -R for recursive, -F for type indicators
+        ls -RF
         echo "Listing contents of 'app' directory:"
         ls -F app/ || echo "Error: app directory not found or empty"
         echo "--- End Debugging Paths ---"
-        
-        # Using absolute path
-        PYLINT_TARGET="${{ github.workspace }}/app/main.py"
+
+        # CORRECTED: Change PYLINT_TARGET to app.py
+        PYLINT_TARGET="app/app.py" # Relative path is fine since current working dir is repo root
+        # OR using absolute path (also correct):
+        # PYLINT_TARGET="${{ github.workspace }}/app/app.py" 
+
         echo "Attempting to lint: $PYLINT_TARGET"
-        
-        export PYTHONPATH=$PYTHONPATH:${{ github.workspace }}
+
+        # You had PYTHONPATH=$PYTHONPATH: which is likely a typo. 
+        # It should be $PYTHONPATH:. or just .
+        # Given the CWD is the repo root, Pylint should find 'app/app.py' without explicit PYTHONPATH,
+        # but adding repo root to PYTHONPATH is generally good practice for imports within your app.
+        export PYTHONPATH=$PYTHONPATH:. 
+
         pylint "$PYLINT_TARGET" --fail-under=7.0
         echo "Lint completed."
-        
-#        export PYTHONPATH=$PYTHONPATH:.
-#        echo "Running Lint with Python 3.13..."
-#        pylint app/main.py --fail-under=7.0
-#        echo "Lint completed."
       job-timeout-minutes: 15
     strategy:
       matrix:
