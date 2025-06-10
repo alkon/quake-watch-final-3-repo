@@ -7,8 +7,37 @@ on:
   workflow_dispatch: # Allows manual trigger
 
 jobs:
+
+  lint:
+    uses: ./.github/workflows/reusable-python-job.yaml
+    with:
+      job-name: Lint
+      python-version: ${{ matrix.python-version }}
+      requirements-path: app/requirements.txt
+      task-script: |
+        pylint app/main.py --fail-under=7.0
+     job-timeout-minutes: 15
+     strategy:
+     matrix:
+       python-version: [ "3.12", "3.13" ]
+
+  # test:
+  #   uses: ./.github/workflows/reusable-python-job.yaml
+  #   with:
+  #     job-name: Test
+  #     python-version: ${{ matrix.python-version }}
+  #     requirements-path: app/requirements.txt
+  #     task-script: |
+  #       pytest app/tests # Adjust to the correct path for tests
+  #     job-timeout-minutes: 15
+  #   strategy:
+  #     matrix:
+  #       python-version: [ "3.12", "3.13" ]
+
   build-and-publish:
     runs-on: self-hosted
+    needs: lint
+    # needs: [lint, test] # Uncomment to reactivate both lint and test
 
     permissions:
       contents: read
