@@ -22,11 +22,19 @@ jobs:
         echo "Listing contents of 'app' directory:"
         ls -F app/ || echo "Error: app directory not found or empty"
         echo "--- End Debugging Paths ---"
-
-        export PYTHONPATH=$PYTHONPATH:.
-        echo "Running Lint with Python 3.13..."
-        pylint app/main.py --fail-under=7.0
+        
+        # Using absolute path
+        PYLINT_TARGET="${{ github.workspace }}/app/main.py"
+        echo "Attempting to lint: $PYLINT_TARGET"
+        
+        export PYTHONPATH=$PYTHONPATH:${{ github.workspace }}
+        pylint "$PYLINT_TARGET" --fail-under=7.0
         echo "Lint completed."
+        
+#        export PYTHONPATH=$PYTHONPATH:.
+#        echo "Running Lint with Python 3.13..."
+#        pylint app/main.py --fail-under=7.0
+#        echo "Lint completed."
       job-timeout-minutes: 15
     strategy:
       matrix:
