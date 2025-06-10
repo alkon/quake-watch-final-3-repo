@@ -14,6 +14,7 @@ jobs:
       python-version: ${{ matrix.python-version }}
       requirements-path: ./requirements.txt
       task-script: |
+        export PYTHONPATH=$PYTHONPATH:.
         pylint app/main.py --fail-under=7.0
       job-timeout-minutes: 15
     strategy:
