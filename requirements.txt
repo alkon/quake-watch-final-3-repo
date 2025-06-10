@@ -1,3 +1,6 @@
-Flask==3.1.0
-requests==2.32.3
+Flask==3.1.1
+requests==2.32.4
+pylint==3.3.7
+pytest==8.4.0
+
 
