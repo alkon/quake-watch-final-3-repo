@@ -14,8 +14,19 @@ jobs:
       python-version: ${{ matrix.python-version }}
       requirements-path: ./requirements.txt
       task-script: |
+        echo "--- Debugging Paths ---"
+        echo "Current working directory: $(pwd)"
+        echo "GITHUB_WORKSPACE: ${{ github.workspace }}"
+        echo "Listing contents of current directory:"
+        ls -RF # -R for recursive, -F for type indicators
+        echo "Listing contents of 'app' directory:"
+        ls -F app/ || echo "Error: app directory not found or empty"
+        echo "--- End Debugging Paths ---"
+
         export PYTHONPATH=$PYTHONPATH:.
+        echo "Running Lint with Python 3.13..."
         pylint app/main.py --fail-under=7.0
+        echo "Lint completed."
       job-timeout-minutes: 15
     strategy:
       matrix:
