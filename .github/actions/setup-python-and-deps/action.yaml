@@ -1,0 +1,65 @@
+name: 'Pyenv Python Setup and Dependencies'
+description: 'Sets up Python using pyenv and installs dependencies.'
+inputs:
+  python-version:
+    description: 'The Python version to set up (e.g., "3.13").'
+    required: true
+  requirements-path:
+    description: 'Path to the requirements.txt file (e.g., "app/requirements.txt").'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Export Pyenv Base Environment Variables
+      shell: bash
+      run: |
+        echo "PYENV_ROOT=$HOME/.pyenv" >> $GITHUB_ENV
+        echo "PATH=$HOME/.pyenv/bin:$PATH" >> $GITHUB_ENV
+        echo "Pyenv base environment variables (PYENV_ROOT, PATH) exported for subsequent steps."
+
+    - name: Install Python via pyenv
+      shell: bash
+      run: |
+        eval "$(pyenv init --path)"
+        # eval "$(pyenv virtualenv-init -)" # Keep if using pyenv virtualenvs
+        
+        PYTHON_VERSION="${{ inputs.python-version }}"
+        echo "Attempting to install Python $PYTHON_VERSION via pyenv..."
+        
+        INSTALLED_VERSION=$(pyenv versions --bare | grep "^$PYTHON_VERSION" | head -n 1)
+
+        if [[ -n "$INSTALLED_VERSION" ]]; then
+          echo "Python $INSTALLED_VERSION (matching $PYTHON_VERSION) is already installed via pyenv. Skipping installation."
+        else
+          echo "Python $PYTHON_VERSION not found, installing..."
+          if ! pyenv install "$PYTHON_VERSION"; then
+            echo "Error: pyenv installation of Python $PYTHON_VERSION failed."
+            exit 1
+          fi
+          echo "Python $PYTHON_VERSION installed successfully."
+        fi
+        
+        if ! pyenv local "$PYTHON_VERSION"; then
+          echo "Error: Failed to set pyenv local to $PYTHON_VERSION."
+          exit 1
+        fi
+        echo "pyenv local set to $PYTHON_VERSION"
+        
+        echo "Verifying Python version:"
+        python --version
+        python3 --version
+        pip --version
+
+    - name: Install Python Dependencies
+      shell: bash
+      run: |
+        eval "$(pyenv init --path)"
+        # eval "$(pyenv virtualenv-init -)" # Keep if using pyenv virtualenvs
+        
+        echo "Installing Python dependencies from ${{ inputs.requirements-path }}..."
+        if ! pip install -r ${{ inputs.requirements-path }}; then
+          echo "Error: Failed to install Python dependencies from ${{ inputs.requirements-path }}."
+          exit 1
+        fi
+        echo "Dependencies installed."
