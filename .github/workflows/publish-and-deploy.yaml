@@ -7,7 +7,6 @@ on:
   workflow_dispatch: # Allows manual trigger
 
 jobs:
-
   lint:
     uses: ./.github/workflows/reusable-python-task.yaml
     with:
@@ -16,11 +15,10 @@ jobs:
       requirements-path: app/requirements.txt
       task-script: |
         pylint app/main.py --fail-under=7.0
-     job-timeout-minutes: 15
-     strategy:
-     matrix:
-       python-version: [ "3.12", "3.13" ]
-
+    job-timeout-minutes: 15 # Corrected indentation
+    strategy: # Corrected indentation
+      matrix: # Corrected indentation
+        python-version: [ "3.12", "3.13" ]
   # test:
   #   uses: ./.github/workflows/reusable-python-job.yaml
   #   with:
@@ -85,23 +83,23 @@ jobs:
 
       - name: Package & Push Helm Chart to GHCR OCI
         run: |
-          CHART_DIR="./k8s/${{ steps.extract_metadata_action.outputs.chart_directory }}" 
-          CHART_NAME="${{ steps.extract_metadata_action.outputs.name }}" 
-          CHART_VERSION="${{ steps.extract_metadata_action.outputs.base_version }}" 
-          
+          CHART_DIR="./k8s/${{ steps.extract_metadata_action.outputs.chart_directory }}"
+          CHART_NAME="${{ steps.extract_metadata_action.outputs.name }}"
+          CHART_VERSION="${{ steps.extract_metadata_action.outputs.base_version }}"
+
           EXPECTED_CHART_PACKAGE_FILENAME="${CHART_NAME}-${CHART_VERSION}.tgz"
 
           echo "Packaging Helm chart from: $CHART_DIR"
           echo "Expected packaged filename: $EXPECTED_CHART_PACKAGE_FILENAME"
-          
-          helm package "$CHART_DIR" --destination . 
-          
+
+          helm package "$CHART_DIR" --destination .
+
           if [ ! -f "$EXPECTED_CHART_PACKAGE_FILENAME" ]; then
             echo "Error: Helm package '$EXPECTED_CHART_PACKAGE_FILENAME' not found after packaging."
             exit 1
           fi
 
-          GHCR_OCI_TARGET="oci://ghcr.io/${{ github.repository_owner }}" 
+          GHCR_OCI_TARGET="oci://ghcr.io/${{ github.repository_owner }}"
           echo "Pushing Helm chart '$EXPECTED_CHART_PACKAGE_FILENAME' to GHCR OCI Repository: $GHCR_OCI_TARGET"
           helm push "$EXPECTED_CHART_PACKAGE_FILENAME" "$GHCR_OCI_TARGET" --debug
         shell: bash
@@ -117,7 +115,7 @@ jobs:
       - name: Set up Kubeconfig for K3D Cluster
         run: |
           mkdir -p ~/.kube
-          echo "${{ secrets.KUBECONFIG }}" > ~/.kube/config 
+          echo "${{ secrets.KUBECONFIG }}" > ~/.kube/config
           chmod 600 ~/.kube/config
           echo "KUBECONFIG=$HOME/.kube/config" >> $GITHUB_ENV
 
@@ -137,15 +135,15 @@ jobs:
 
       - name: Update ArgoCD Application with Chart.yaml Version and Sync
         run: |
-          APP_NAME="${{ needs.build-and-publish.outputs.argocd_app_name }}" 
+          APP_NAME="${{ needs.build-and-publish.outputs.argocd_app_name }}"
 
           # CORRECTED: Use base_chart_version for ArgoCD's targetRevision for the OCI chart
           CHART_VERSION_FOR_ARGOCD="${{ needs.build-and-publish.outputs.base_chart_version }}"
-          
+
           echo "Updating ArgoCD application '${APP_NAME}' targetRevision to Helm chart version: ${CHART_VERSION_FOR_ARGOCD}"
           kubectl patch application "${APP_NAME}" -n argocd --type='json' -p='[{"op": "replace", "path": "/spec/source/targetRevision", "value":"'"$CHART_VERSION_FOR_ARGOCD"'"}]'
 
           echo "Triggering sync for ArgoCD application: ${APP_NAME}"
-          argocd app sync "$APP_NAME" --prune 
+          argocd app sync "$APP_NAME" --prune
 
           argocd app wait "$APP_NAME" --health --sync --timeout 300
