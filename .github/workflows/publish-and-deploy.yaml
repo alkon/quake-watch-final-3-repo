@@ -15,9 +15,9 @@ jobs:
       requirements-path: app/requirements.txt
       task-script: |
         pylint app/main.py --fail-under=7.0
-    job-timeout-minutes: 15 # Corrected indentation
-    strategy: # Corrected indentation
-      matrix: # Corrected indentation
+      job-timeout-minutes: 15
+    strategy:
+      matrix:
         python-version: [ "3.12", "3.13" ]
   # test:
   #   uses: ./.github/workflows/reusable-python-job.yaml
