@@ -12,7 +12,7 @@ jobs:
     with:
       job-name: Lint
       python-version: ${{ matrix.python-version }}
-      requirements-path: app/requirements.txt
+      requirements-path: ./requirements.txt
       task-script: |
         pylint app/main.py --fail-under=7.0
       job-timeout-minutes: 15
