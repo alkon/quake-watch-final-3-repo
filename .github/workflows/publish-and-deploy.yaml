@@ -168,7 +168,6 @@ jobs:
     needs: deploy
     uses: ./.github/workflows/test-app-with-n8n.yaml # Using n8n self-hosted agent
     with:
-      kubeconfig-secret: ${{ secrets.KUBECONFIG }}
       build-image-tag: ${{ needs.build-and-publish.outputs.image_tag }}
       app-name-for-port-forward: ${{ needs.build-and-publish.outputs.argocd_app_name }}
       app-internal-port: 5000
