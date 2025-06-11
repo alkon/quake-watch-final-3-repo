@@ -1,0 +1,32 @@
+name: 'Set up Kubeconfig'
+description: 'Sets up the Kubeconfig file for kubectl access to a Kubernetes cluster.'
+
+inputs:
+  kubeconfig-secret:
+    description: 'The base64 encoded kubeconfig string from a GitHub Secret.'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Create .kube directory
+      shell: bash
+      run: |
+        mkdir -p ~/.kube
+
+    - name: Write Kubeconfig file
+      shell: bash
+      run: |
+        # Write the kubeconfig secret to ~/.kube/config
+        # Ensure it's treated as a single line and no extra newlines are added by GitHub Actions.
+        echo "${{ inputs.kubeconfig-secret }}" > ~/.kube/config
+        
+        # Set appropriate permissions for the kubeconfig file
+        chmod 600 ~/.kube/config
+        
+        # Set the KUBECONFIG environment variable for subsequent steps in the job
+        echo "KUBECONFIG=$HOME/.kube/config" >> $GITHUB_ENV
+      env:
+        # Avoid logging the secret itself to stdout if it's passed directly to shell
+        # Instead, we rely on GitHub Actions' masking for secrets.
+        KUBECONFIG_TO_WRITE: ${{ inputs.kubeconfig-secret }}
