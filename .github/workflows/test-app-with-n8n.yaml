@@ -3,14 +3,6 @@ name: Run Application E2E Test with n8n
 on:
   workflow_call:
     inputs:
-      kubeconfig-secret:
-        required: true
-        type: string
-        description: 'The Kubeconfig secret for cluster access.'
-      n8n-webhook-url-secret:
-        required: true
-        type: string
-        description: 'The GitHub secret name holding the n8n production webhook URL.'
       build-image-tag:
         required: true
         type: string
@@ -30,11 +22,11 @@ on:
     secrets:
       KUBECONFIG:
         required: true
-      N8N_WEBHOOK_URL: # Pass the actual secret value
+      N8N_WEBHOOK_URL:
         required: true
 
 jobs:
-  e2e-test: # Renamed job within reusable workflow
+  e2e-test:
     runs-on: self-hosted
     steps:
       - name: Checkout Code
@@ -43,7 +35,8 @@ jobs:
       - name: Set up Kubeconfig for K3D Cluster
         uses: ./.github/actions/setup-kubeconfig # Reused action for kubeconfig setup
         with:
-          kubeconfig-secret: ${{ secrets.KUBECONFIG }} # Use the secret passed to the workflow
+          # Pass the KUBECONFIG secret directly to the custom action from the workflow_call's secrets
+          kubeconfig-secret: ${{ secrets.KUBECONFIG }}
 
       - name: Ensure Port-Forwarding for App Access
         run: |
@@ -67,7 +60,7 @@ jobs:
                }"
           echo "n8n workflow triggered successfully. Check n8n for detailed execution."
         env:
-          N8N_TEST_WEBHOOK_URL: ${{ secrets.N8N_WEBHOOK_URL }} # Use the secret passed to the workflow
+          N8N_TEST_WEBHOOK_URL: ${{ secrets.N8N_WEBHOOK_URL }}
 
       - name: Stop Port-Forwarding
         if: always()
