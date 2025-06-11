@@ -164,18 +164,16 @@ jobs:
 
           argocd app wait "$APP_NAME" --health --sync --timeout 300
 
-  call-e2e-test: # Job for e2e test
+  call-e2e-test:
     runs-on: self-hosted # GH self-hosted runner
     needs: deploy
     uses: ./.github/workflows/test-app-with-n8n.yaml # Using n8n self-hosted agent
       with:
-        # Pass inputs to the reusable workflow
         kubeconfig-secret: ${{ secrets.KUBECONFIG }}
         build-image-tag: ${{ needs.build-and-publish.outputs.image_tag }}
         app-name-for-port-forward: ${{ needs.build-and-publish.outputs.argocd_app_name }}
         app-internal-port: 5000
         app-local-port: 8000
     secrets:
-      # Pass secrets directly. They are not visible in workflow logs.
-      KUBECONFIG: ${{ secrets.KUBECONFIG }}
+      KUBECONFIG: ${{ secrets.KUBECONFIG }} # Pass secrets directly. They are not visible in workflow logs.
       N8N_WEBHOOK_URL: ${{ secrets.N8N_TEST_WEBHOOK_URL }} # Use the existing secret name
