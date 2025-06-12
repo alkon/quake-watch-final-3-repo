@@ -165,7 +165,7 @@ jobs:
           argocd app wait "$APP_NAME" --health --sync --timeout 300
 
   call-e2e-test:
-    needs: deploy
+    needs: [deploy, build-and-publish]
     uses: ./.github/workflows/test-app-with-n8n.yaml # Using n8n self-hosted agent
     with:
       build-image-tag: ${{ needs.build-and-publish.outputs.image_tag }}
