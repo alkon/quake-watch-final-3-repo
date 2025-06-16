@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: quake-watch-app-chart-gitops
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: ghcr.io/alkon # There is the bug that helm pushes chart in double-nested dir
+    targetRevision: v0.4.0
+    chart: quake-watch-app-chart
+    helm:
+      values: |
+        replicaCount: 2
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

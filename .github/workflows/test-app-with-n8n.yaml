@@ -1,0 +1,76 @@
+name: Run Application E2E Test with n8n
+
+on:
+  workflow_call:
+    inputs:
+      build-image-tag:
+        required: true
+        type: string
+        description: 'The Docker image tag (appVersion) from the build.'
+      app-name-for-port-forward:
+        required: true
+        type: string
+        description: 'The Kubernetes service name to port-forward (e.g., quake-watch-app-chart-gitops).'
+      app-internal-port: # e.g., 5000
+        required: true
+        type: number
+        description: 'The internal port of the application service in Kubernetes.'
+      app-local-port: # e.g., 8000
+        required: true
+        type: number
+        description: 'The local port on the runner to forward to the app.'
+    secrets:
+      KUBECONFIG:
+        required: true
+      N8N_WEBHOOK_URL:
+        required: true
+
+jobs:
+  e2e-test:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Kubeconfig for K3D Cluster
+        uses: ./.github/actions/setup-kubeconfig # Reused action for kubeconfig setup
+        with:
+          # Pass the KUBECONFIG secret directly to the custom action from the workflow_call's secrets
+          kubeconfig-secret: ${{ secrets.KUBECONFIG }}
+
+      - name: Ensure Port-Forwarding for App Access
+        run: |
+          echo "Starting port-forwarding for ${{ inputs.app-name-for-port-forward }} service..."
+          kubectl port-forward service/${{ inputs.app-name-for-port-forward }} ${{ inputs.app-local-port }}:${{ inputs.app-internal-port }} &
+          PORT_FORWARD_PID=$!
+          echo "Port-forwarding started with PID: $PORT_FORWARD_PID"
+          sleep 10
+          echo $PORT_FORWARD_PID > port_forward.pid
+        shell: bash
+
+      - name: Trigger n8n Test Workflow
+        run: |
+          set -e
+          echo "Triggering n8n workflow for application health check..."
+          curl -X POST "${{ secrets.N8N_WEBHOOK_URL }}" \
+               -H "Content-Type: application/json" \
+               -d "{
+                 \"github_run_id\": \"${{ github.run_id }}\",
+                 \"app_version\": \"${{ inputs.build-image-tag }}\"
+               }"
+          echo "n8n workflow triggered successfully. Check n8n for detailed execution."
+        env:
+          N8N_TEST_WEBHOOK_URL: ${{ secrets.N8N_WEBHOOK_URL }}
+
+      - name: Stop Port-Forwarding
+        if: always()
+        run: |
+          if [ -f port_forward.pid ]; then
+            PID=$(cat port_forward.pid)
+            echo "Stopping port-forwarding PID: $PID"
+            kill "$PID"
+            rm port_forward.pid
+          else
+            echo "No port_forward.pid found, port-forwarding might not have started or was already stopped."
+          fi
+        shell: bash

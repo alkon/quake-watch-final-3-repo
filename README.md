@@ -122,9 +122,10 @@ n8n is integrated into the CI/CD pipeline for automated end-to-end (E2E) testing
     --namespace default \
     --type=kubernetes.io/dockerconfigjson \
     --from-file=.dockerconfigjson=/dev/stdin
-  ``` 
-- Note 2: Helm Chart values.yaml Modification
-```text
-   imagePullSecrets: 
-     - name: ghcr-image-pull-secret # <-- Refers to Kubernetes Image Pull Secret
- ```
+ ``` 
+  - Note 2: Helm Chart values.yaml Modification
+  ```text
+     imagePullSecrets: 
+       - name: ghcr-image-pull-secret # <-- Refers to Kubernetes Image Pull Secret
+   ```
+ 

@@ -1,0 +1,63 @@
+name: 'Extract Helm Chart Metadata'
+description: 'Extracts name, version, directory path, and derived ArgoCD app name from Chart.yaml'
+inputs:
+  chart-path:
+    description: 'Path to the directory containing Chart.yaml (e.g., ./k8s/my-chart)'
+    required: true
+outputs:
+  name:
+    description: 'The name of the Helm chart'
+    value: ${{ steps.extract.outputs.chart_name }}
+  base_version:
+    description: 'The base version of the Helm chart from Chart.yaml'
+    value: ${{ steps.extract.outputs.base_chart_version }}
+  chart_directory:
+    description: 'The directory name of the Helm chart'
+    value: ${{ steps.extract.outputs.chart_directory }}
+  app_name: # NEW OUTPUT
+    description: 'The derived ArgoCD application name (e.g., <chart-name>-gitops)'
+    value: ${{ steps.extract.outputs.argocd_app_name }}
+  app_version: # <--- NEW OUTPUT FOR APP VERSION
+    description: 'The appVersion of the Helm chart from Chart.yaml'
+    value: ${{ steps.extract.outputs.app_version }} # Referencing the output from the run step
+runs:
+  using: "composite"
+  steps:
+    - id: extract
+      run: |
+        CHART_YAML_PATH=$(find ${{ inputs.chart-path }} -name Chart.yaml | head -n 1) 
+        
+        if [ -z "$CHART_YAML_PATH" ]; then
+          echo "Error: No Chart.yaml found in ${{ inputs.chart-path }} directory."
+          exit 1
+        fi
+        
+        BASE_CHART_VERSION=$(grep '^version:' "$CHART_YAML_PATH" | cut -d ':' -f2 | xargs)
+        echo "Base chart version detected from Chart.yaml: $BASE_CHART_VERSION"
+        echo "base_chart_version=$BASE_CHART_VERSION" >> "$GITHUB_OUTPUT" 
+
+        CHART_NAME=$(grep '^name:' "$CHART_YAML_PATH" | cut -d ':' -f2 | xargs)
+        echo "Chart name detected: $CHART_NAME"
+        echo "chart_name=$CHART_NAME" >> "$GITHUB_OUTPUT" 
+
+        CHART_DIRECTORY=$(dirname "$CHART_YAML_PATH" | xargs basename)
+        echo "Chart directory name: $CHART_DIRECTORY"
+        echo "chart_directory=$CHART_DIRECTORY" >> "$GITHUB_OUTPUT" 
+
+        # NEW: Derive ArgoCD application name based on convention
+        ARGOCD_APP_NAME="${CHART_NAME}-gitops"
+        echo "Derived ArgoCD Application Name: $ARGOCD_APP_NAME"
+        echo "argocd_app_name=$ARGOCD_APP_NAME" >> "$GITHUB_OUTPUT"
+
+        # --- ADD THIS BLOCK FOR APP VERSION ---
+        APP_VERSION=$(grep '^appVersion:' "$CHART_YAML_PATH" | cut -d ':' -f2 | xargs)
+        if [ -z "$APP_VERSION" ]; then
+            # Fallback if appVersion is not explicitly set, perhaps use chart version or a default
+            echo "Warning: appVersion not found in Chart.yaml. Using base_chart_version as fallback."
+            APP_VERSION="$BASE_CHART_VERSION"
+        fi
+        echo "App version detected from Chart.yaml: $APP_VERSION"
+        echo "app_version=$APP_VERSION" >> "$GITHUB_OUTPUT"
+        # -------------------------------------
+
+      shell: bash

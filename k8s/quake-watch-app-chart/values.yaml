@@ -1,0 +1,30 @@
+replicaCount: 2
+
+image:
+  repository: ghcr.io/alkon/quake-watch-app # Updated to your full GHCR image path
+  pullPolicy: IfNotPresent
+  # REMOVED: 'tag: "latest"'. The deployment template will now default to Chart.AppVersion (1.0.0).
+
+service:
+  type: ClusterIP
+  port: 5000
+  targetPort: 5000
+
+serviceAccount:
+  create: true # This must be set to true for the ServiceAccount to be created
+  name: ""     # Leave empty to use the default generated name
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
+
+autoscaling:
+  enabled: false
+
+nodeSelector: {}
+affinity: {}
+tolerations: {}

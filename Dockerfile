@@ -34,6 +34,10 @@ RUN apk update && \
 # Copy the installed Python packages from the builder stage
 COPY --from=builder /usr/local/lib/python${PYTHON_VER}/site-packages /usr/local/lib/python${PYTHON_VER}/site-packages
 
+# Create log dir
+RUN mkdir -p /shared-logs
+# ===============================================
+
 # Copy the entire 'app' directory from the host into the container's /app working directory
 # This single command now copies all your Python files, scripts, static, and templates.
 COPY app/ .
